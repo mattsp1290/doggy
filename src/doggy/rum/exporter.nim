@@ -30,6 +30,16 @@ type
 proc `=copy`*(dst: var RumExporter; src: RumExporter) {.error:
   "RumExporter owns a thread — pass by var".}
 
+proc flushRum(state: ptr RumState; batch: seq[string]) {.inline.} =
+  if batch.len == 0: return
+  {.cast(gcsafe).}:
+    try:
+      let baseUrl = rumIntakeUrl(state[].config.site)
+      let url = baseUrl & "?dd-api-key=" & state[].config.clientToken
+      discard postJson(url, toNdjson(batch), "")
+    except CatchableError:
+      discard
+
 proc workerProc(state: ptr RumState) {.thread.} =
   var batch: seq[string] = @[]
   var nextFlush = monoMs() + state[].config.flushIntervalMs
@@ -48,17 +58,20 @@ proc workerProc(state: ptr RumState) {.thread.} =
                       monoMs() >= nextFlush or isDone
 
     if batch.len > 0 and shouldFlush:
-      {.cast(gcsafe).}:
-        try:
-          let baseUrl = rumIntakeUrl(state[].config.site)
-          let url = baseUrl & "?dd-api-key=" & state[].config.clientToken
-          discard postJson(url, toNdjson(batch), "")
-        except:
-          discard
+      flushRum(state, batch)
       batch.setLen(0)
       nextFlush = monoMs() + state[].config.flushIntervalMs
 
     if isDone:
+      # Final drain: flush all remaining queue items before exiting.
+      while true:
+        let rest = state[].queue.drain()
+        if rest.len == 0: break
+        var i = 0
+        while i < rest.len:
+          let chunkEnd = min(i + state[].config.batchSize, rest.len)
+          flushRum(state, rest[i ..< chunkEnd])
+          i = chunkEnd
       break
 
     sleep(WorkerPollMs)
@@ -80,6 +93,8 @@ proc enqueueLine(state: ptr RumState; line: string) =
 
 proc initRumExporter*(exp: var RumExporter; config: RumConfig) =
   exp.state = cast[ptr RumState](allocShared0(sizeof(RumState)))
+  # Safety: config is deep-copied before createThread. After that, only the
+  # worker reads config fields — no concurrent mutation of shared GC strings.
   exp.state[].config = config
   initAsyncQueue(exp.state[].queue)
   initRumSession(exp.state[].session)
@@ -88,33 +103,45 @@ proc initRumExporter*(exp: var RumExporter; config: RumConfig) =
   exp.running = true
 
 proc newView*(exp: var RumExporter): string =
+  if not exp.running: return ""
   exp.state[].session.newView()
 
 proc send*(exp: var RumExporter; ev: var RumSessionEvent) =
+  if not exp.running: return
   fillAndRotate(exp.state, ev.base)
   enqueueLine(exp.state, toJson(ev))
 
 proc send*(exp: var RumExporter; ev: var RumViewEvent) =
+  if not exp.running: return
   fillAndRotate(exp.state, ev.base)
   enqueueLine(exp.state, toJson(ev))
 
 proc send*(exp: var RumExporter; ev: var RumActionEvent) =
+  if not exp.running: return
   fillAndRotate(exp.state, ev.base)
   enqueueLine(exp.state, toJson(ev))
 
 proc send*(exp: var RumExporter; ev: var RumResourceEvent) =
+  if not exp.running: return
   fillAndRotate(exp.state, ev.base)
   enqueueLine(exp.state, toJson(ev))
 
 proc send*(exp: var RumExporter; ev: var RumErrorEvent) =
+  if not exp.running: return
   fillAndRotate(exp.state, ev.base)
   enqueueLine(exp.state, toJson(ev))
 
 proc send*(exp: var RumExporter; ev: var RumVitalEvent) =
+  if not exp.running: return
   fillAndRotate(exp.state, ev.base)
   enqueueLine(exp.state, toJson(ev))
 
 proc forceFlush*(exp: var RumExporter) =
+  # Drains the queue from the calling thread. Races the worker — items go to
+  # exactly one consumer (no duplication), but completeness is best-effort.
+  # postJson retries with exponential backoff; caller may block for several
+  # seconds on a 5xx. Prefer calling from a background thread when possible.
+  if not exp.running: return
   var items: seq[string] = @[]
   var item = exp.state[].queue.tryDequeue()
   while item.isSome:
@@ -125,15 +152,16 @@ proc forceFlush*(exp: var RumExporter) =
       let baseUrl = rumIntakeUrl(exp.state[].config.site)
       let url = baseUrl & "?dd-api-key=" & exp.state[].config.clientToken
       discard postJson(url, toNdjson(items), "")
-    except:
+    except CatchableError:
       discard
 
 proc shutdown*(exp: var RumExporter) =
   if not exp.running: return
+  exp.running = false  # gate producer procs before joining
   exp.state[].done.store(true)
   joinThread(exp.thread)
   deinitAsyncQueue(exp.state[].queue)
   deinitRumSession(exp.state[].session)
+  reset(exp.state[])   # destroy GC'd config/session string fields before raw free
   deallocShared(exp.state)
   exp.state = nil
-  exp.running = false

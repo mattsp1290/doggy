@@ -9,6 +9,9 @@ proc resetGlobals() =
   gErrorCount.store(0)
 
 block socket_error_increments_dropped_and_calls_on_error:
+  # Unresolvable hostname causes OSError in connect() at init.
+  # The first send() sees connected=false and increments droppedCount.
+  # onError was called once during init (at connect failure).
   resetGlobals()
   let cfg = StatsdConfig(
     host:  "invalid.host.doesnotexist.doggy.test",
@@ -17,8 +20,8 @@ block socket_error_increments_dropped_and_calls_on_error:
       {.cast(gcsafe).}: gErrors.add(msg),
   )
   var c: DogStatsd
-  initDogStatsd(c, cfg)
-  c.counter("test.metric")
+  initDogStatsd(c, cfg)         # connect fails: onError called
+  c.counter("test.metric")      # connected=false: droppedCount++
   assert c.droppedCount() == 1, "droppedCount must be 1, got: " & $c.droppedCount()
   assert gErrors.len == 1, "onError must be called once, got: " & $gErrors.len
   assert gErrors[0].len > 0, "onError message must not be empty"
@@ -30,7 +33,7 @@ block no_exception_from_send:
     port:  12345,
   )
   var c: DogStatsd
-  initDogStatsd(c, cfg)
+  initDogStatsd(c, cfg)  # connect fails silently (no onError set)
   var raised = false
   try:
     c.counter("x")
@@ -46,10 +49,12 @@ block no_exception_from_send:
   deinitDogStatsd(c)
 
 block sample_rate_zero_drops_without_socket_attempt:
+  # Use 127.0.0.1 so connect() succeeds (UDP, no listener needed).
+  # sampleRate=0.0 short-circuits before reaching the socket; onError never fires.
   resetGlobals()
   let cfg = StatsdConfig(
-    host:  "invalid.host.doesnotexist.doggy.test",
-    port:  12345,
+    host:  "127.0.0.1",
+    port:  19191,
     onError: proc(msg: string) {.gcsafe.} =
       discard gErrorCount.fetchAdd(1),
   )
@@ -62,6 +67,7 @@ block sample_rate_zero_drops_without_socket_attempt:
   deinitDogStatsd(c)
 
 block sample_rate_one_never_sample_drops:
+  # sampleRate=1.0 must never take the sampleDrop path.
   let cfg = StatsdConfig(
     host:  "127.0.0.1",
     port:  19191,
@@ -71,10 +77,10 @@ block sample_rate_one_never_sample_drops:
   initDogStatsd(c, cfg)
   for _ in 0 ..< 5:
     c.counter("x", sampleRate = 1.0)
-  # droppedCount may be >0 if the loopback UDP fails, but must be from socket errors
-  # not from sampling — verify by checking no sample-rate drop path was taken
-  # (we can't distinguish here, but the important invariant is that sampleRate=1.0
-  # never short-circuits into sampleDrop before attempting the socket)
+  # UDP fire-and-forget to 127.0.0.1 does not error at socket level;
+  # droppedCount must be 0 (no sample-drop path taken, no socket error).
+  assert c.droppedCount() == 0,
+    "sampleRate=1.0 must not increment droppedCount via sampling, got: " & $c.droppedCount()
   deinitDogStatsd(c)
 
 when isMainModule:

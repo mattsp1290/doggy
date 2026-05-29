@@ -12,6 +12,9 @@ proc retryAfterMs(resp: Response; fallback: int): int =
     except ValueError: discard
   fallback
 
+# Blocking: retries up to MaxRetries (3) times with exponential backoff
+# (1s → 2s → 4s, or Retry-After seconds), worst-case ~7s + request time.
+# Fine for background worker threads; avoid on latency-sensitive call paths.
 proc postJson*(url: string; body: string; apiKey: string;
                extraHeaders: openArray[(string, string)] = []): Response =
   let client = newHttpClient()
