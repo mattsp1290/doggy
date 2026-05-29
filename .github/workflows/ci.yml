@@ -35,6 +35,7 @@ jobs:
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_statsd_types.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_queue.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_events_types.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_http_client.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/dogstatsd/test_encoder.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/dogstatsd/test_client.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_session.nim
@@ -42,7 +43,14 @@ jobs:
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_serialize.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/error_tracking/test_serialize.nim
 
-      - name: Build check (no examples yet)
+      - name: Build check (examples)
+        run: |
+          nim check --mm:orc --threads:on -d:ssl --hints:off examples/dogstatsd.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off examples/rum.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off examples/error_tracking.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off examples/events.nim
+
+      - name: Build check (library modules)
         run: |
           nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/queue.nim
           nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/http_client.nim
@@ -51,11 +59,14 @@ jobs:
           nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/rum/exporter.nim
           nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/error_tracking/exporter.nim
           nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/events/client.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy.nim
 
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    # Only run on pushes to main when secrets are available.
+    # PRs from forks do not have access to secrets and skip this job.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     env:
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
       DD_CLIENT_TOKEN: ${{ secrets.DD_CLIENT_TOKEN }}
@@ -78,6 +89,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nimble-
 
-      - name: Run integration tests
+      - name: Check required secrets
         run: |
-          echo "Integration tests require examples/ — add when examples are written"
+          if [ -z "$DD_API_KEY" ]; then
+            echo "DD_API_KEY secret not set — skipping integration tests"
+            exit 0
+          fi
+          echo "Secrets available, running integration tests"
+
+      - name: Run integration tests
+        if: env.DD_API_KEY != ''
+        run: |
+          # Integration tests send real payloads to DD_SITE=us3.datadoghq.com.
+          # Tests live in tests/integration/ (not yet written — placeholder).
+          echo "No integration tests yet — add tests/integration/*.nim when ready."
