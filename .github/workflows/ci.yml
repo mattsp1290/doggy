@@ -42,6 +42,8 @@ jobs:
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_vitals.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_serialize.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/error_tracking/test_serialize.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/events/test_serialize.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/events/test_client.nim
 
       - name: Build check (examples)
         run: |

@@ -27,6 +27,8 @@ task test, "Run unit tests":
     "tests/rum/test_vitals.nim",
     "tests/rum/test_serialize.nim",
     "tests/error_tracking/test_serialize.nim",
+    "tests/events/test_serialize.nim",
+    "tests/events/test_client.nim",
   ]
   for f in testFiles:
     exec "nim c " & flags & " -r " & f
