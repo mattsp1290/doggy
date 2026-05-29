@@ -31,6 +31,16 @@ task test, "Run unit tests":
   for f in testFiles:
     exec "nim c " & flags & " -r " & f
 
+# Run integration tests (require DD_API_KEY / DD_CLIENT_TOKEN; skipped otherwise)
+task integration, "Run integration tests against Datadog":
+  let flags = "--mm:orc --threads:on -d:ssl --hints:off"
+  let testFiles = @[
+    "tests/error_tracking/test_integration.nim",
+    "tests/rum/test_integration.nim",
+  ]
+  for f in testFiles:
+    exec "nim c " & flags & " -r " & f
+
 # Check all library modules compile
 task check, "Check library modules":
   let flags = "--mm:orc --threads:on -d:ssl --hints:off"
