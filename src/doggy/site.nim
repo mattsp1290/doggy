@@ -8,28 +8,29 @@ type DdSite* = enum
   SiteAP1   = "ap1.datadoghq.com"
 
 # Hardcoded intake URL tables — no string interpolation.
+# Enum-keyed so a reorder of DdSite members cannot silently mismap a site's URLs.
 const rumIntakeUrls: array[DdSite, string] = [
-  "https://browser-intake-datadoghq.com/api/v2/rum",
-  "https://browser-intake-datadoghq.eu/api/v2/rum",
-  "https://browser-intake-us3-datadoghq.com/api/v2/rum",
-  "https://browser-intake-us5-datadoghq.com/api/v2/rum",
-  "https://browser-intake-ap1-datadoghq.com/api/v2/rum",
+  SiteUS1: "https://browser-intake-datadoghq.com/api/v2/rum",
+  SiteEU1: "https://browser-intake-datadoghq.eu/api/v2/rum",
+  SiteUS3: "https://browser-intake-us3-datadoghq.com/api/v2/rum",
+  SiteUS5: "https://browser-intake-us5-datadoghq.com/api/v2/rum",
+  SiteAP1: "https://browser-intake-ap1-datadoghq.com/api/v2/rum",
 ]
 
 const logsIntakeUrls: array[DdSite, string] = [
-  "https://http-intake.logs.datadoghq.com/api/v2/logs",
-  "https://http-intake.logs.datadoghq.eu/api/v2/logs",
-  "https://http-intake.logs.us3.datadoghq.com/api/v2/logs",
-  "https://http-intake.logs.us5.datadoghq.com/api/v2/logs",
-  "https://http-intake.logs.ap1.datadoghq.com/api/v2/logs",
+  SiteUS1: "https://http-intake.logs.datadoghq.com/api/v2/logs",
+  SiteEU1: "https://http-intake.logs.datadoghq.eu/api/v2/logs",
+  SiteUS3: "https://http-intake.logs.us3.datadoghq.com/api/v2/logs",
+  SiteUS5: "https://http-intake.logs.us5.datadoghq.com/api/v2/logs",
+  SiteAP1: "https://http-intake.logs.ap1.datadoghq.com/api/v2/logs",
 ]
 
 const apiBaseUrls: array[DdSite, string] = [
-  "https://api.datadoghq.com",
-  "https://api.datadoghq.eu",
-  "https://api.us3.datadoghq.com",
-  "https://api.us5.datadoghq.com",
-  "https://api.ap1.datadoghq.com",
+  SiteUS1: "https://api.datadoghq.com",
+  SiteEU1: "https://api.datadoghq.eu",
+  SiteUS3: "https://api.us3.datadoghq.com",
+  SiteUS5: "https://api.us5.datadoghq.com",
+  SiteAP1: "https://api.ap1.datadoghq.com",
 ]
 
 proc parseSite*(s: string): DdSite =

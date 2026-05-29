@@ -2,7 +2,8 @@ import std/sysrand
 
 proc newUuid4*(): string =
   var bytes: array[16, byte]
-  doAssert urandom(bytes)
+  if not urandom(bytes):
+    raise newException(OSError, "urandom failed to provide entropy for UUID generation")
 
   # Set version 4 bits: top nibble of byte 6 = 0100
   bytes[6] = (bytes[6] and 0x0f'u8) or 0x40'u8
