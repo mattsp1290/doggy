@@ -69,6 +69,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     env:
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
       DD_CLIENT_TOKEN: ${{ secrets.DD_CLIENT_TOKEN }}
       DD_APPLICATION_ID: ${{ secrets.DD_APPLICATION_ID }}
       DD_SITE: us3.datadoghq.com
@@ -101,5 +102,9 @@ jobs:
         if: env.DD_API_KEY != ''
         run: |
           # Integration tests send real payloads to DD_SITE=us3.datadoghq.com.
-          # Tests live in tests/integration/ (not yet written — placeholder).
-          echo "No integration tests yet — add tests/integration/*.nim when ready."
+          # Each test skips itself gracefully when required env vars are absent.
+          # Pup-based Datadog query assertions require PUP_BIN + DD_APP_KEY;
+          # when unavailable, tests pass after verifying the send-path only.
+          # DogStatsD pup assertion additionally requires DD_STATSD_VERIFY_DELIVERY
+          # (and a local Agent) — not set here; that test runs as send-only.
+          nimble integration
