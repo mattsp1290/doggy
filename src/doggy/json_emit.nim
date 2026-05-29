@@ -90,6 +90,10 @@ proc startArr*(b: var JsonBuilder, key: string) =
 
 # --- Array (bare element) adders ---
 
+proc addRawElem*(b: var JsonBuilder, raw: string) =
+  b.sep()
+  b.buf.add(raw)
+
 proc addStrElem*(b: var JsonBuilder, val: string) =
   b.sep()
   b.buf.add(escapeString(val))
