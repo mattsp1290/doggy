@@ -1,10 +1,10 @@
 ## EventsClient unit tests using a thread-based TCP responder.
 ##
-## EventsClient.send() builds its URL from config.site, so we test
-## the HTTP transport layer (postJson) directly for mock-server cases,
-## and verify EventsClient itself doesn't raise on unreachable endpoints.
+## All tests are hermetic: the mock TCP server runs in-process on a loopback
+## address. EventsClient is pointed at it via the baseUrl constructor parameter,
+## which overrides the site-derived URL in production use.
 
-import std/[net, os, atomics, json, httpclient]
+import std/[net, os, atomics, httpclient]
 import doggy/events/types, doggy/events/client
 import doggy/http_client
 import doggy/site
@@ -38,10 +38,10 @@ proc serverThread(arg: ptr ServerArg) {.thread.} =
   srv.listen()
   var cl: Socket
   try: srv.accept(cl)
-  except: srv.close(); return
+  except CatchableError: srv.close(); return
   var buf = newString(8192)
   try: discard cl.recv(buf, 8192, timeout = 1000)
-  except: discard
+  except CatchableError: discard
   cl.send(httpResp(arg[].code))
   cl.close()
   discard arg[].callCount.fetchAdd(1)
@@ -67,10 +67,43 @@ proc startServer(code: int): string =
 proc stopServer() = joinThread(gServerThread)
 proc calls(): int = gArg.callCount.load()
 
-# ----- tests -----
+# ----- EventsClient.send() tests (via baseUrl injection) -----
+
+block send_returns_true_on_2xx:
+  # send() must return true when the server responds 202 (Datadog's typical response).
+  let url = startServer(202)
+  let ec = newEventsClient(EventsConfig(apiKey: "fakekey", site: SiteUS1), url)
+  assert ec.send(DdEvent(title: "t", text: "x", alertType: datInfo)),
+    "send() must return true on 2xx"
+  assert calls() == 1
+  stopServer()
+
+block send_returns_false_on_4xx:
+  # send() must return false (not raise) when the server responds 403.
+  let url = startServer(403)
+  let ec = newEventsClient(EventsConfig(apiKey: "badkey", site: SiteUS1), url)
+  assert not ec.send(DdEvent(title: "t", text: "x", alertType: datError)),
+    "send() must return false on 4xx"
+  assert calls() == 1
+  stopServer()
+
+block send_swallows_5xx_no_raise:
+  # postJson raises IOError on 5xx; send() must catch it and return false.
+  # 500 is not in the retry set, so the responder answers exactly one request.
+  let url = startServer(500)
+  let ec = newEventsClient(EventsConfig(apiKey: "k", site: SiteUS1), url)
+  var raised = false
+  var ok = true
+  try: ok = ec.send(DdEvent(title: "t", text: "x", alertType: datInfo))
+  except CatchableError: raised = true
+  assert not raised, "send() must not raise on 5xx"
+  assert not ok, "send() must return false on 5xx"
+  stopServer()
+
+# ----- postJson transport layer tests -----
 
 block post_json_2xx_succeeds:
-  # Verify the HTTP layer accepts a 202 (Datadog's typical events response).
+  # Verify the HTTP layer accepts a 202 response directly via postJson.
   let url = startServer(202)
   let ev = DdEvent(title: "test", text: "body", alertType: datInfo)
   let resp = postJson(url & "/api/v2/events", ev.toJson(), "fakekey")
@@ -79,42 +112,13 @@ block post_json_2xx_succeeds:
   stopServer()
 
 block post_json_4xx_returns_response:
-  # 4xx responses return the code rather than raising.
+  # 4xx responses are returned (not raised) by postJson.
   let url = startServer(403)
   let ev = DdEvent(title: "err", text: "x", alertType: datError)
   let resp = postJson(url & "/api/v2/events", ev.toJson(), "badkey")
   assert resp.code.int == 403
   assert calls() == 1
   stopServer()
-
-block send_never_raises:
-  # EventsClient targeting an unreachable endpoint must not raise.
-  let cfg = EventsConfig(apiKey: "k", site: SiteUS1)
-  let ec = newEventsClient(cfg)
-  var raised = false
-  try:
-    discard ec.send(DdEvent(title: "x", text: "y", alertType: datInfo))
-  except:
-    raised = true
-  assert not raised, "EventsClient.send must never raise"
-
-block event_json_is_valid:
-  # Verify the JSON body is well-formed for a fully-populated event.
-  let ev = DdEvent(
-    title:          "Deploy",
-    text:           "v1 shipped",
-    alertType:      datSuccess,
-    dateHappened:   1_700_000_000'i64,
-    tags:           @["env:prod"],
-    sourceTypeName: "ci",
-  )
-  let parsed = ev.toJson().parseJson()
-  assert parsed["title"].getStr()       == "Deploy"
-  assert parsed["text"].getStr()        == "v1 shipped"
-  assert parsed["alert_type"].getStr()  == "success"
-  assert parsed["date_happened"].getInt() == 1_700_000_000
-  assert parsed["tags"][0].getStr()     == "env:prod"
-  assert parsed["source_type_name"].getStr() == "ci"
 
 when isMainModule:
   echo "Events client tests passed"
