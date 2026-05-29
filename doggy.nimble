@@ -37,6 +37,8 @@ task integration, "Run integration tests against Datadog":
   let testFiles = @[
     "tests/error_tracking/test_integration.nim",
     "tests/rum/test_integration.nim",
+    "tests/events/test_integration.nim",
+    "tests/dogstatsd/test_integration.nim",
   ]
   for f in testFiles:
     exec "nim c " & flags & " -r " & f

@@ -108,3 +108,5 @@ jobs:
           # send-path completed without error.
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/error_tracking/test_integration.nim
           nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_integration.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/events/test_integration.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/dogstatsd/test_integration.nim
