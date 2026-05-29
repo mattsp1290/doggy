@@ -1,12 +1,14 @@
 ## Integration test: RUM intake against Datadog.
 ##
 ## Required env: DD_CLIENT_TOKEN, DD_APPLICATION_ID, DD_SITE
-## Optional env: DD_APP_KEY (enables Datadog query assertion via pup)
+## Optional env: DD_APP_KEY + DD_API_KEY (enables Datadog query assertion via pup)
+##               PUP_BIN (override path to pup binary)
 ##
 ## Test is skipped (exit 0) when required env vars are not set.
 ## Sends RumSessionEvent, RumViewEvent, RumActionEvent, and a frame_time
-## RumVitalEvent, calls forceFlush(), sleeps 5s, then asserts the events
-## appear in Datadog RUM if pup + DD_APP_KEY are available.
+## RumVitalEvent. The RUM exporter returns void so without pup this is a
+## smoke test (verifies calls do not raise). With pup + DD_APP_KEY + DD_API_KEY,
+## sleeps 5s and asserts the events appear in Datadog RUM.
 
 import std/[os, osproc, json]
 import doggy/site
@@ -21,6 +23,7 @@ when isMainModule:
 
   let siteStr = getEnv("DD_SITE", "datadoghq.com")
   let appKey  = getEnv("DD_APP_KEY")
+  let apiKey  = getEnv("DD_API_KEY")   # required by pup --no-agent
 
   var rum: RumExporter
   initRumExporter(rum, defaultRumConfig(clientToken, applicationId, "doggy-rum-integ-test", parseSite(siteStr)))
@@ -42,29 +45,30 @@ when isMainModule:
   rum.forceFlush()
   rum.shutdown()
 
-  echo "4 RUM events sent. Waiting 5s for Datadog ingestion..."
-  sleep(5_000)
+  echo "4 RUM events sent (smoke test: calls completed without raising)."
 
-  # Datadog query assertion — requires pup binary and DD_APP_KEY.
-  if appKey.len == 0:
-    echo "INFO: DD_APP_KEY not set — skipping Datadog query assertion (send-only pass)"
+  # Datadog query assertion — requires pup, DD_APP_KEY, and DD_API_KEY.
+  # (pup --no-agent queries the Datadog API with DD_API_KEY, not the RUM client token.)
+  if appKey.len == 0 or apiKey.len == 0:
+    echo "INFO: DD_APP_KEY/DD_API_KEY not both set — skipping Datadog query assertion (send-only pass)"
     quit(0)
 
   proc findPupBin(): string =
+    result = getEnv("PUP_BIN")
+    if result.len > 0 and fileExists(result): return
     result = findExe("pup")
-    if result.len == 0:
-      const localPup = "/Users/punk1290/git/pup/target/release/pup"
-      if fileExists(localPup):
-        result = localPup
 
   let pupBin = findPupBin()
   if pupBin.len == 0:
-    echo "INFO: pup binary not found — skipping Datadog query assertion (send-only pass)"
+    echo "INFO: pup binary not found (set PUP_BIN env or add pup to PATH) — skipping query assertion (send-only pass)"
     quit(0)
 
+  echo "Waiting 5s for Datadog ingestion..."
+  sleep(5_000)
+
   # Query RUM events for this application within the last 5 minutes.
-  let query   = "@application.id:" & applicationId
-  let cmd     = pupBin & " rum events --query=" & quoteShell(query) & " --from=5m --no-agent"
+  let query = "@application.id:" & applicationId
+  let cmd   = pupBin & " rum events --query=" & quoteShell(query) & " --from=5m --no-agent"
   let (output, exitCode) = execCmdEx(cmd)
   assert exitCode == 0, "pup rum events failed (exit " & $exitCode & "):\n" & output
 

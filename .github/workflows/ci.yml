@@ -103,10 +103,8 @@ jobs:
         run: |
           # Integration tests send real payloads to DD_SITE=us3.datadoghq.com.
           # Each test skips itself gracefully when required env vars are absent.
-          # The Datadog query assertion additionally requires DD_APP_KEY and pup;
-          # when those are unavailable the test still passes after verifying the
-          # send-path completed without error.
-          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/error_tracking/test_integration.nim
-          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_integration.nim
-          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/events/test_integration.nim
-          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/dogstatsd/test_integration.nim
+          # Pup-based Datadog query assertions require PUP_BIN + DD_APP_KEY;
+          # when unavailable, tests pass after verifying the send-path only.
+          # DogStatsD pup assertion additionally requires DD_STATSD_VERIFY_DELIVERY
+          # (and a local Agent) — not set here; that test runs as send-only.
+          nimble integration

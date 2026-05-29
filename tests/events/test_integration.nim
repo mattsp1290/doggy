@@ -2,6 +2,7 @@
 ##
 ## Required env: DD_API_KEY, DD_SITE
 ## Optional env: DD_APP_KEY (enables Datadog query assertion via pup)
+##               PUP_BIN (override path to pup binary)
 ##
 ## Test is skipped (exit 0) when DD_API_KEY is not set.
 ## Sends one DdEvent and asserts a 2xx response. Optionally queries
@@ -41,15 +42,13 @@ when isMainModule:
     quit(0)
 
   proc findPupBin(): string =
+    result = getEnv("PUP_BIN")
+    if result.len > 0 and fileExists(result): return
     result = findExe("pup")
-    if result.len == 0:
-      const localPup = "/Users/punk1290/git/pup/target/release/pup"
-      if fileExists(localPup):
-        result = localPup
 
   let pupBin = findPupBin()
   if pupBin.len == 0:
-    echo "INFO: pup binary not found — skipping Datadog query assertion (send-only pass)"
+    echo "INFO: pup binary not found (set PUP_BIN env or add pup to PATH) — skipping query assertion (send-only pass)"
     quit(0)
 
   # Datadog events can take a few seconds to appear; use a 5m window.

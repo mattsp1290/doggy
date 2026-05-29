@@ -1,29 +1,24 @@
 ## Integration test: DogStatsD against a local Datadog Agent.
 ##
-## Required env: DD_API_KEY (used to query via pup; also gates skip)
-## Optional env: DD_APP_KEY (enables Datadog metrics query assertion via pup)
-##               DD_STATSD_HOST (default: localhost)
+## No required env vars for the send path — UDP to a local Agent is fire-and-forget.
+## Optional env: DD_STATSD_HOST (default: localhost)
 ##               DD_STATSD_PORT (default: 8125)
-##               DD_SITE       (default: datadoghq.com)
+##               DD_STATSD_VERIFY_DELIVERY (non-empty enables the Datadog query assertion)
+##               DD_API_KEY + DD_APP_KEY (required when DD_STATSD_VERIFY_DELIVERY is set)
+##               PUP_BIN (override path to pup binary)
 ##
-## Test is skipped (exit 0) when DD_API_KEY is not set.
-## Sends counter, gauge, histogram, event, and service check to the Agent,
-## waits 10s, then asserts via pup that the counter metric appears.
-## Verifies droppedCount is zero after all sends.
+## The send path always runs and verifies the client does not self-report drops.
+## NOTE: droppedCount==0 proves the client did not internally drop a datagram;
+##       for UDP it does NOT prove the Agent received anything (sends to a dead
+##       port do not raise). Delivery is verified only via pup when
+##       DD_STATSD_VERIFY_DELIVERY is set and a real Agent is running.
 
 import std/[os, osproc, json, strutils]
 import doggy/dogstatsd/types, doggy/dogstatsd/client
 
 when isMainModule:
-  let apiKey = getEnv("DD_API_KEY")
-  if apiKey.len == 0:
-    echo "SKIP: DD_API_KEY not set"
-    quit(0)
-
-  let siteStr  = getEnv("DD_SITE", "datadoghq.com")
-  let sdHost   = getEnv("DD_STATSD_HOST", "localhost")
-  let sdPort   = parseInt(getEnv("DD_STATSD_PORT", "8125"))
-  let appKey   = getEnv("DD_APP_KEY")
+  let sdHost = getEnv("DD_STATSD_HOST", "localhost")
+  let sdPort = parseInt(getEnv("DD_STATSD_PORT", "8125"))
 
   let metricName = "doggy.integ.counter"
 
@@ -53,33 +48,41 @@ when isMainModule:
     tags:    @["env:test"],
   ))
 
+  # droppedCount==0 proves the client did not self-report a drop.
+  # For UDP it does NOT prove the Agent received anything.
   let dropped = sd.droppedCount()
   deinitDogStatsd(sd)
+  assert dropped == 0, "client self-reported " & $dropped & " dropped datagram(s)"
 
-  assert dropped == 0, "expected 0 dropped datagrams, got " & $dropped
+  echo "UDP send complete. Client reports no self-drops (UDP delivery not verified without local Agent)."
 
-  echo "All datagrams sent (droppedCount=0). Waiting 10s for Agent flush to Datadog..."
-  sleep(10_000)
+  # Datadog metrics query assertion — requires a local Agent forwarding to Datadog.
+  # CI has no Agent, so this section only runs when DD_STATSD_VERIFY_DELIVERY is set.
+  if getEnv("DD_STATSD_VERIFY_DELIVERY").len == 0:
+    echo "INFO: DD_STATSD_VERIFY_DELIVERY not set — send-only pass (no local Agent assumed)"
+    quit(0)
 
-  # Datadog metrics query — requires pup + DD_APP_KEY.
-  if appKey.len == 0:
-    echo "INFO: DD_APP_KEY not set — skipping Datadog query assertion (send-only pass)"
+  let apiKey = getEnv("DD_API_KEY")
+  let appKey = getEnv("DD_APP_KEY")
+  if apiKey.len == 0 or appKey.len == 0:
+    echo "INFO: DD_API_KEY/DD_APP_KEY not both set — skipping Datadog query assertion"
     quit(0)
 
   proc findPupBin(): string =
+    result = getEnv("PUP_BIN")
+    if result.len > 0 and fileExists(result): return
     result = findExe("pup")
-    if result.len == 0:
-      const localPup = "/Users/punk1290/git/pup/target/release/pup"
-      if fileExists(localPup):
-        result = localPup
 
   let pupBin = findPupBin()
   if pupBin.len == 0:
-    echo "INFO: pup binary not found — skipping Datadog query assertion (send-only pass)"
+    echo "INFO: pup binary not found (set PUP_BIN env or add pup to PATH) — skipping query assertion"
     quit(0)
 
-  let query  = "sum:" & metricName & "{*}"
-  let cmd    = pupBin & " metrics query --query=" & quoteShell(query) & " --from=5m --no-agent"
+  echo "Waiting 10s for Agent flush to Datadog..."
+  sleep(10_000)
+
+  let query = "sum:" & metricName & "{*}"
+  let cmd   = pupBin & " metrics query --query=" & quoteShell(query) & " --from=5m --no-agent"
   let (output, exitCode) = execCmdEx(cmd)
   assert exitCode == 0, "pup metrics query failed (exit " & $exitCode & "):\n" & output
 

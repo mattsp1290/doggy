@@ -1,11 +1,13 @@
 ## Integration test: Error Tracking intake against Datadog.
 ##
 ## Required env: DD_API_KEY, DD_SITE
-## Optional env: DD_APP_KEY (enables Datadog query assertion via pup)
+## Optional env: DD_APP_KEY + DD_API_KEY (enables Datadog query assertion via pup)
+##               PUP_BIN (override path to pup binary)
 ##
 ## Test is skipped (exit 0) when DD_API_KEY is not set.
-## Sends one error event, calls forceFlush(), sleeps 10s, then
-## asserts the event appears in Datadog logs if pup + DD_APP_KEY are available.
+## Sends one error event and calls forceFlush(). The exporter returns void
+## so without pup this is a smoke test (verifies calls do not raise).
+## With pup + DD_APP_KEY set, sleeps 10s and asserts the event appears in Datadog logs.
 
 import std/[os, osproc, json]
 import doggy/site
@@ -22,9 +24,9 @@ when isMainModule:
   let appKey  = getEnv("DD_APP_KEY")
 
   # Unique ID embedded in the error message so we can find exactly this run's event.
-  let runId     = newUuid4()
-  let service   = "doggy-et-integ-test"
-  let errorMsg  = "doggy integration test " & runId
+  let runId    = newUuid4()
+  let service  = "doggy-et-integ-test"
+  let errorMsg = "doggy integration test " & runId
 
   var exp: ErrorTrackingExporter
   initErrorTrackingExporter(exp, ErrorTrackingConfig(
@@ -46,29 +48,30 @@ when isMainModule:
   exp.forceFlush()
   exp.shutdown()
 
-  echo "Event sent. Waiting 10s for Datadog ingestion..."
-  sleep(10_000)
+  echo "Event sent (smoke test: calls completed without raising)."
 
-  # Datadog query assertion — requires pup binary and DD_APP_KEY.
-  if appKey.len == 0:
-    echo "INFO: DD_APP_KEY not set — skipping Datadog query assertion (send-only pass)"
+  # Datadog query assertion — requires pup binary, DD_APP_KEY, and DD_API_KEY.
+  # (pup --no-agent authenticates with DD_API_KEY, not the RUM client token.)
+  if appKey.len == 0 or apiKey.len == 0:
+    echo "INFO: DD_APP_KEY/DD_API_KEY not both set — skipping Datadog query assertion (send-only pass)"
     quit(0)
 
   proc findPupBin(): string =
+    result = getEnv("PUP_BIN")
+    if result.len > 0 and fileExists(result): return
     result = findExe("pup")
-    if result.len == 0:
-      const localPup = "/Users/punk1290/git/pup/target/release/pup"
-      if fileExists(localPup):
-        result = localPup
 
   let pupBin = findPupBin()
   if pupBin.len == 0:
-    echo "INFO: pup binary not found — skipping Datadog query assertion (send-only pass)"
+    echo "INFO: pup binary not found (set PUP_BIN env or add pup to PATH) — skipping query assertion (send-only pass)"
     quit(0)
 
+  echo "Waiting 10s for Datadog ingestion..."
+  sleep(10_000)
+
   # Use a 30m window to stay well inside DD indexing lag.
-  let query  = "service:" & service & " " & quoteShell("@error.message:" & errorMsg)
-  let cmd    = pupBin & " logs search --query=" & quoteShell("service:" & service & " @error.message:\"" & errorMsg & "\"") & " --from=30m --no-agent"
+  let qStr = "service:" & service & " @error.message:\"" & errorMsg & "\""
+  let cmd  = pupBin & " logs search --query=" & quoteShell(qStr) & " --from=30m --no-agent"
   let (output, exitCode) = execCmdEx(cmd)
   assert exitCode == 0, "pup logs search failed (exit " & $exitCode & "):\n" & output
 
