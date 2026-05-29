@@ -1,4 +1,4 @@
-import std/json, std/strutils
+import std/json
 import doggy/events/types
 
 block full_event_round_trip:

@@ -11,8 +11,10 @@ proc toJson*(ev: ErrorEvent): string =
   b.addStr("message", ev.errorMessage)
   b.endObj()
   b.addStr("ddsource", if ev.ddSource.len > 0: ev.ddSource else: "nim")
-  b.addStr("service",  ev.service)
-  b.addStr("hostname", ev.hostname)
+  if ev.service.len > 0:
+    b.addStr("service", ev.service)
+  if ev.hostname.len > 0:
+    b.addStr("hostname", ev.hostname)
   if ev.ddTags.len > 0:
     b.addStr("ddtags", ev.ddTags)
   if ev.version.len > 0:

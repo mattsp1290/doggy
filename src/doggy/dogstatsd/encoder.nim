@@ -12,10 +12,14 @@ proc encodeMetric*(name: string; value: string; metricType: string;
 proc encodeStatsdMetric*(m: StatsdMetric): string =
   encodeMetric(m.name, $m.value, m.metricType, m.sampleRate, m.tags)
 
+proc dsdEscape(s: string): string =
+  # DogStatsD receivers are commonly line-split; escape newlines per convention
+  s.replace("\n", "\\n")
+
 proc encodeEvent*(ev: StatsdEvent): string =
-  let titleLen = ev.title.len
-  let textLen  = ev.text.len
-  result = fmt"_e{{{titleLen},{textLen}}}:{ev.title}|{ev.text}"
+  let title = dsdEscape(ev.title)
+  let text  = dsdEscape(ev.text)
+  result = fmt"_e{{{title.len},{text.len}}}:{title}|{text}"
   result.add("|t:" & $ev.alertType)
   if ev.tags.len > 0:
     result.add("|#" & ev.tags.join(","))
@@ -24,7 +28,9 @@ proc encodeServiceCheck*(sc: StatsdServiceCheck): string =
   # status ordinal: ok=0, warning=1, critical=2, unknown=3
   let statusCode = ord(sc.status)
   result = "_sc|" & sc.name & "|" & $statusCode
-  if sc.message.len > 0:
-    result.add("|m:" & sc.message)
+  # tags must precede message — the message field runs to end-of-packet and
+  # a parser reading from |m: absorbs everything after it, including |#tags
   if sc.tags.len > 0:
     result.add("|#" & sc.tags.join(","))
+  if sc.message.len > 0:
+    result.add("|m:" & dsdEscape(sc.message))
