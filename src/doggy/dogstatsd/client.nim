@@ -1,5 +1,6 @@
 import std/atomics
 import std/net
+import std/sysrand
 import doggy/dogstatsd/encoder
 import doggy/dogstatsd/types
 
@@ -31,32 +32,45 @@ proc send*(client: var DogStatsd; datagram: string) =
     if client.config.onError != nil:
       client.config.onError(e.msg)
 
+proc shouldSample(rate: float64): bool {.inline.} =
+  if rate >= 1.0:
+    return true
+  var buf: array[8, byte]
+  discard urandom(buf)
+  let n = cast[uint64](buf)
+  float64(n) / float64(high(uint64)) < rate
+
 proc mergeTags(defaults: seq[string]; extra: seq[string]): seq[string] =
   result = defaults
   result.add(extra)
 
 proc counter*(client: var DogStatsd; name: string; value: float64 = 1.0;
               tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
+  if not shouldSample(sampleRate): return
   client.send(encodeStatsdMetric(
     newCounter(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc gauge*(client: var DogStatsd; name: string; value: float64;
             tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
+  if not shouldSample(sampleRate): return
   client.send(encodeStatsdMetric(
     newGauge(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc histogram*(client: var DogStatsd; name: string; value: float64;
                 tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
+  if not shouldSample(sampleRate): return
   client.send(encodeStatsdMetric(
     newHistogram(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc set*(client: var DogStatsd; name: string; value: float64;
           tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
+  if not shouldSample(sampleRate): return
   client.send(encodeStatsdMetric(
     newSet(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc timing*(client: var DogStatsd; name: string; value: float64;
              tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
+  if not shouldSample(sampleRate): return
   client.send(encodeStatsdMetric(
     newTiming(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
