@@ -1,7 +1,6 @@
 ## HTTP client retry logic tests using a thread-based TCP responder.
 
-import std/[net, os, atomics]
-import std/httpclient as hc
+import std/[net, os, atomics, httpclient]
 import doggy/http_client
 
 # ----- minimal TCP responder -----

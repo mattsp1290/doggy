@@ -31,13 +31,16 @@ Send metrics to the Datadog Agent (default `localhost:8125`). Fire-and-forget �
 ```nim
 import doggy/dogstatsd/types, doggy/dogstatsd/client
 
-var statsd: DogStatsd
-initDogStatsd(statsd, defaultStatsdConfig())
-defer: deinitDogStatsd(statsd)
+proc main() =
+  var statsd: DogStatsd
+  initDogStatsd(statsd, defaultStatsdConfig())
+  defer: deinitDogStatsd(statsd)
 
-statsd.counter("game.frames", 1.0, tags = @["scene:gameplay"])
-statsd.gauge("game.players_online", 42.0)
-statsd.timing("game.frame_time_ms", 16.7)
+  statsd.counter("game.frames", 1.0, tags = @["scene:gameplay"])
+  statsd.gauge("game.players_online", 42.0)
+  statsd.timing("game.frame_time_ms", 16.7)
+
+main()
 ```
 
 ### RUM
@@ -46,25 +49,26 @@ Send session, view, action, resource, error, and vital events to Datadog browser
 
 ```nim
 import std/os
-import doggy/site
 import doggy/rum/types, doggy/rum/vitals, doggy/rum/exporter
 
-var rum: RumExporter
-initRumExporter(rum, defaultRumConfig(
-  clientToken   = getEnv("DD_CLIENT_TOKEN"),
-  applicationId = getEnv("DD_APPLICATION_ID"),
-  service       = "my-game",
-))
-defer: rum.shutdown()
+proc main() =
+  var rum: RumExporter
+  initRumExporter(rum, defaultRumConfig(
+    clientToken   = getEnv("DD_CLIENT_TOKEN"),
+    applicationId = getEnv("DD_APPLICATION_ID"),
+    service       = "my-game",
+  ))
+  defer: rum.shutdown()
 
-discard rum.newView()
+  discard rum.newView()
 
-var view = RumViewEvent(name: "MainMenu", url: "game://menu")
-rum.send(view)
+  var view = RumViewEvent(name: "MainMenu", url: "game://menu")
+  rum.send(view)
 
-var vital = newFrameTimeVital(16.7)
-var vitalEv = RumVitalEvent(name: vital.name, value: vital.value, unit: vital.unit)
-rum.send(vitalEv)
+  var vitalEv = newFrameTimeVital(16.7)
+  rum.send(vitalEv)
+
+main()
 ```
 
 ### Error Tracking
@@ -73,21 +77,23 @@ Report crashes and exceptions to Datadog via the logs intake. Surfaces in the Er
 
 ```nim
 import std/os
-import doggy/site
 import doggy/error_tracking/types, doggy/error_tracking/exporter
 
-var et: ErrorTrackingExporter
-initErrorTrackingExporter(et, defaultErrorTrackingConfig(
-  apiKey  = getEnv("DD_API_KEY"),
-  service = "my-game",
-))
-defer: et.shutdown()
+proc main() =
+  var et: ErrorTrackingExporter
+  initErrorTrackingExporter(et, defaultErrorTrackingConfig(
+    apiKey  = getEnv("DD_API_KEY"),
+    service = "my-game",
+  ))
+  defer: et.shutdown()
 
-et.reportException(
-  "NilAccessError",
-  "Player entity was nil",
-  "at game/player.nim:42",
-)
+  et.reportException(
+    "NilAccessError",
+    "Player entity was nil",
+    "at game/player.nim:42",
+  )
+
+main()
 ```
 
 ### Custom Events
@@ -154,8 +160,7 @@ proc gameLoop() =
 
 ```nim
 proc onFrame(frameMs, fps: float64) =
-  var fv = newFrameTimeVital(frameMs)
-  var ev = RumVitalEvent(name: fv.name, value: fv.value, unit: fv.unit)
+  var ev = newFrameTimeVital(frameMs)
   rum.send(ev)  # serializes and enqueues; never blocks
 ```
 
@@ -212,7 +217,9 @@ HTTP calls from the Error Tracking, Events, and RUM exporters honor Datadog's re
 - **Retried**: 429, 502, 503, 504 — exponential backoff (1s → 2s → 4s), up to 3 retries.
 - **Retry-After**: delta-seconds form honored; other forms fall back to the exponential schedule.
 - **Not retried**: other 4xx — warning logged, response returned.
-- **5xx after retries**: raises `IOError`.
+- **429 after retries exhausted**: returns the 429 response (does not raise). Check `resp.code` if you need to handle exhausted-retry 429s explicitly.
+- **5xx in retry set after retries exhausted**: raises `IOError`.
+- **Other 5xx** (not in retry set): raises `IOError` immediately.
 - **Worker threads**: retries are synchronous on the worker thread (not the caller's thread).
 
 ---

@@ -54,10 +54,9 @@ proc main() =
   )
   rum.send(errorEv)
 
-  let fv = newFrameTimeVital(16.7)
-  var vitalEv = RumVitalEvent(name: fv.name, value: fv.value, unit: fv.unit)
+  var vitalEv = newFrameTimeVital(16.7)
   rum.send(vitalEv)
-  echo "Sent 6 RUM events"
+  echo "Sent 6 RUM events (session, view, action, resource, error, vital)"
 
   rum.forceFlush()
   echo "Done."
