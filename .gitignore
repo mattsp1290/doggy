@@ -1,7 +1,7 @@
 nimcache/
 nimblecache/
 htmldocs/
-*.out
+*.out        # Nim/testament compiled binaries
 
 # Beads / Dolt files (added by bd init)
 .dolt/

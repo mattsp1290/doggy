@@ -1,5 +1,10 @@
 # doggy — Datadog-native observability for Nim
 # Import this module to get the full public API.
+#
+# Export aliasing convention:
+#   RUM is the unprefixed public surface (types, session, vitals, exporter).
+#   DogStatsD / Error Tracking / Events are imported under prefixed aliases
+#   (statsd_*, et_*, ev_*) to avoid symbol collisions across subsystems.
 
 import doggy/site
 import doggy/uuid
