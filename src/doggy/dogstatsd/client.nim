@@ -44,33 +44,36 @@ proc mergeTags(defaults: seq[string]; extra: seq[string]): seq[string] =
   result = defaults
   result.add(extra)
 
+proc sampleDrop(client: var DogStatsd) {.inline.} =
+  discard client.droppedField.fetchAdd(1)
+
 proc counter*(client: var DogStatsd; name: string; value: float64 = 1.0;
               tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
-  if not shouldSample(sampleRate): return
+  if not shouldSample(sampleRate): client.sampleDrop(); return
   client.send(encodeStatsdMetric(
     newCounter(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc gauge*(client: var DogStatsd; name: string; value: float64;
             tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
-  if not shouldSample(sampleRate): return
+  if not shouldSample(sampleRate): client.sampleDrop(); return
   client.send(encodeStatsdMetric(
     newGauge(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc histogram*(client: var DogStatsd; name: string; value: float64;
                 tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
-  if not shouldSample(sampleRate): return
+  if not shouldSample(sampleRate): client.sampleDrop(); return
   client.send(encodeStatsdMetric(
     newHistogram(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc set*(client: var DogStatsd; name: string; value: float64;
           tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
-  if not shouldSample(sampleRate): return
+  if not shouldSample(sampleRate): client.sampleDrop(); return
   client.send(encodeStatsdMetric(
     newSet(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 
 proc timing*(client: var DogStatsd; name: string; value: float64;
              tags: seq[string] = @[]; sampleRate: float64 = 1.0) =
-  if not shouldSample(sampleRate): return
+  if not shouldSample(sampleRate): client.sampleDrop(); return
   client.send(encodeStatsdMetric(
     newTiming(name, value, mergeTags(client.config.defaultTags, tags), sampleRate)))
 

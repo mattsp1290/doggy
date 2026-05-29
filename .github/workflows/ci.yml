@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nim
+        uses: nim-lang/setup-nim-action@v2
+        with:
+          nim-version: stable
+          no-color: true
+
+      - name: Cache Nim compiler
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimble
+          key: ${{ runner.os }}-nimble-${{ hashFiles('doggy.nimble') }}
+          restore-keys: |
+            ${{ runner.os }}-nimble-
+
+      - name: Run unit tests
+        run: |
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_json_emit.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_site.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_uuid.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_statsd_types.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_queue.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/test_events_types.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/dogstatsd/test_encoder.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/dogstatsd/test_client.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_session.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_vitals.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/rum/test_serialize.nim
+          nim c --mm:orc --threads:on -d:ssl --hints:off -r tests/error_tracking/test_serialize.nim
+
+      - name: Build check (no examples yet)
+        run: |
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/queue.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/http_client.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/dogstatsd/client.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/rum/serialize.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/rum/exporter.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/error_tracking/exporter.nim
+          nim check --mm:orc --threads:on -d:ssl --hints:off src/doggy/events/client.nim
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    env:
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      DD_CLIENT_TOKEN: ${{ secrets.DD_CLIENT_TOKEN }}
+      DD_APPLICATION_ID: ${{ secrets.DD_APPLICATION_ID }}
+      DD_SITE: us3.datadoghq.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nim
+        uses: nim-lang/setup-nim-action@v2
+        with:
+          nim-version: stable
+          no-color: true
+
+      - name: Cache Nim compiler
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimble
+          key: ${{ runner.os }}-nimble-${{ hashFiles('doggy.nimble') }}
+          restore-keys: |
+            ${{ runner.os }}-nimble-
+
+      - name: Run integration tests
+        run: |
+          echo "Integration tests require examples/ — add when examples are written"
