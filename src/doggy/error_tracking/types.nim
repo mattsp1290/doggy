@@ -26,7 +26,7 @@ proc defaultErrorTrackingConfig*(apiKey, service: string;
   ErrorTrackingConfig(
     apiKey:          apiKey,
     service:         service,
-    hostname:        getHostname(),
+    hostname:        (try: getHostname() except OSError: ""),
     site:            site,
     batchSize:       20,
     flushIntervalMs: 5_000,

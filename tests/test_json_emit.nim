@@ -1,4 +1,4 @@
-import std/math, std/strutils
+import std/strutils
 import doggy/json_emit
 
 block basic_types:

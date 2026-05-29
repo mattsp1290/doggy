@@ -38,7 +38,8 @@ type
     tags*:    seq[string]
 
 proc defaultStatsdConfig*(host = "localhost"; port = 8125): StatsdConfig =
-  StatsdConfig(host: host, port: port, defaultTags: @[])
+  StatsdConfig(host: host, port: port, defaultTags: @[],
+               onError: proc(msg: string) {.gcsafe.} = discard)
 
 proc newCounter*(name: string; value: float64 = 1.0;
                  tags: seq[string] = @[]; sampleRate: float64 = 1.0): StatsdMetric =

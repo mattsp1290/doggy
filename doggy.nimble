@@ -10,4 +10,4 @@ skipDirs      = @["tests", "examples", "docs"]
 requires "nim >= 2.0.0"
 
 task test, "Run unit tests":
-  exec "testament pattern 'tests/**/test_*.nim'"
+  exec "testament pattern 'tests/test_*.nim'"

@@ -1,4 +1,4 @@
-import std/strutils
+import std/strutils, std/os
 import doggy/site
 
 block all_rum_urls:
@@ -48,10 +48,14 @@ block parse_empty:
   assert fired, "expected ValueError for empty site"
 
 block default_site:
-  # initSite() reads DD_SITE env; unset → datadoghq.com
-  when not defined(CI):
-    let s = initSite()
-    assert s == SiteUS1 or true  # passes whether env is set or not
+  putEnv("DD_SITE", "datadoghq.com")
+  assert initSite() == SiteUS1
+  delEnv("DD_SITE")
+
+block default_site_eu:
+  putEnv("DD_SITE", "datadoghq.eu")
+  assert initSite() == SiteEU1
+  delEnv("DD_SITE")
 
 when isMainModule:
   echo "Site resolver tests passed"

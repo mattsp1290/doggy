@@ -1,6 +1,5 @@
 import doggy/site
 import doggy/json_emit
-import std/strutils
 
 type
   DdAlertType* = enum
@@ -12,7 +11,7 @@ type
   DdEvent* = object
     title*:          string
     text*:           string
-    dateHappened*:   int64   # epoch seconds
+    dateHappened*:   int64   # epoch seconds; 0 means "omit" (Datadog defaults to now)
     alertType*:      DdAlertType
     tags*:           seq[string]
     sourceTypeName*: string
@@ -21,14 +20,21 @@ type
     apiKey*: string
     site*:   DdSite
 
+proc defaultEventsConfig*(apiKey: string; site = SiteUS1): EventsConfig =
+  EventsConfig(apiKey: apiKey, site: site)
+
 proc toJson*(ev: DdEvent): string =
   var b = newJsonObject()
   b.addStr("title", ev.title)
   b.addStr("text", ev.text)
-  b.addInt("date_happened", ev.dateHappened)
+  if ev.dateHappened > 0:
+    b.addInt("date_happened", ev.dateHappened)
   b.addStr("alert_type", $ev.alertType)
   if ev.tags.len > 0:
-    b.addStr("tags", ev.tags.join(","))
+    b.startArr("tags")
+    for t in ev.tags:
+      b.addStrElem(t)
+    b.endArr()
   if ev.sourceTypeName.len > 0:
     b.addStr("source_type_name", ev.sourceTypeName)
   b.build()
