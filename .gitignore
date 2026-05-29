@@ -5,6 +5,8 @@ htmldocs/
 testresults/
 tests/test_*
 !tests/test_*.nim
+tests/**/test_*
+!tests/**/*.nim
 
 # Beads / Dolt files (added by bd init)
 .dolt/
