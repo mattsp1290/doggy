@@ -90,6 +90,13 @@ proc startArr*(b: var JsonBuilder, key: string) =
 
 # --- Array (bare element) adders ---
 
+## Appends `raw` verbatim as one array element — no escaping or validation.
+## `raw` MUST be exactly one complete, valid JSON value (object, array, or scalar).
+## Intended for splicing already-serialized objects; never pass user input directly.
+proc addRawElem*(b: var JsonBuilder, raw: string) =
+  b.sep()
+  b.buf.add(raw)
+
 proc addStrElem*(b: var JsonBuilder, val: string) =
   b.sep()
   b.buf.add(escapeString(val))
