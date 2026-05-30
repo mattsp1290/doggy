@@ -17,6 +17,8 @@ proc addBase(b: var JsonBuilder; base: RumEventBase; eventType: string) =
   b.startObj("session")
   b.addStr("id", base.sessionId)
   b.addStr("type", "user")
+  if base.userAgent.len > 0:
+    b.addStr("useragent", base.userAgent)
   b.endObj()
   if base.service.len > 0:
     b.addStr("service", base.service)

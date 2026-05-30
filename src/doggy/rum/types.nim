@@ -22,6 +22,7 @@ type
     ddtags*:        string
     service*:       string
     version*:       string
+    userAgent*:     string  # session.useragent; empty = omit
 
   RumSessionEvent* = object
     base*: RumEventBase
@@ -62,6 +63,8 @@ type
     site*:           DdSite
     batchSize*:      int
     flushIntervalMs*: int
+    userAgent*:      string  # set in session.useragent; empty = omit
+    ddSource*:       string  # ddsource URL param; defaults to "browser"
 
 proc defaultRumConfig*(clientToken, applicationId, service: string;
                        site = SiteUS1): RumConfig =
@@ -72,4 +75,5 @@ proc defaultRumConfig*(clientToken, applicationId, service: string;
     site:            site,
     batchSize:       50,
     flushIntervalMs: 10_000,
+    ddSource:        "browser",
   )

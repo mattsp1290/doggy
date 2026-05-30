@@ -32,7 +32,8 @@ proc `=copy`*(dst: var RumExporter; src: RumExporter) {.error:
 
 proc buildRumUrl(state: ptr RumState): string {.inline.} =
   var url = rumIntakeUrl(state[].config.site)
-  url &= "?ddsource=nim&sdkVersion=doggy-0.1.0"
+  let src = if state[].config.ddSource.len > 0: state[].config.ddSource else: "browser"
+  url &= "?ddsource=" & src & "&sdkVersion=doggy-0.1.0"
   url &= "&dd-api-key=" & state[].config.clientToken
   if state[].config.service.len > 0:
     url &= "&ddtags=service:" & state[].config.service
@@ -90,6 +91,7 @@ proc fillAndRotate(state: ptr RumState; base: var RumEventBase) =
   base.applicationId = state[].config.applicationId
   base.service       = state[].config.service
   base.version       = state[].config.version
+  base.userAgent     = state[].config.userAgent
   base.timestamp     = epochMs()
   state[].session.touch()
 
