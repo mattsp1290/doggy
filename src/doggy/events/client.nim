@@ -14,7 +14,7 @@ proc newEventsClient*(config: EventsConfig; baseUrl = ""): EventsClient =
 proc send*(client: EventsClient; ev: DdEvent): bool =
   let base = if client.baseUrl.len > 0: client.baseUrl
              else: apiBaseUrl(client.config.site)
-  let url = base & "/api/v2/events"
+  let url = base & "/api/v1/events"
   try:
     let resp = postJson(url, toJson(ev), client.config.apiKey)
     if resp.code.is2xx():
