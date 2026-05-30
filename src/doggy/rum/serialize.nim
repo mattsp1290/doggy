@@ -6,8 +6,10 @@ proc addBase(b: var JsonBuilder; base: RumEventBase; eventType: string) =
   b.addInt("format_version", 2'i64)
   b.addInt("drift", 0'i64)
   b.startObj("session")
-  b.addInt("plan", 1'i64)  # 1=LITE (no replay), 2=REPLAY
+  b.addInt("plan", 1'i64)
   b.endObj()
+  if base.ddSource.len > 0:
+    b.addStr("source", base.ddSource)
   b.endObj()
   b.addStr("type", eventType)
   b.addInt("date", base.timestamp)
@@ -20,6 +22,23 @@ proc addBase(b: var JsonBuilder; base: RumEventBase; eventType: string) =
   if base.userAgent.len > 0:
     b.addStr("useragent", base.userAgent)
   b.endObj()
+  if base.device.deviceType.len > 0:
+    b.startObj("device")
+    b.addStr("type", base.device.deviceType)
+    if base.device.name.len > 0:  b.addStr("name",         base.device.name)
+    if base.device.model.len > 0: b.addStr("model",        base.device.model)
+    if base.device.brand.len > 0: b.addStr("brand",        base.device.brand)
+    if base.device.architecture.len > 0:
+      b.addStr("architecture", base.device.architecture)
+    b.endObj()
+  if base.os.osType.len > 0:
+    b.startObj("os")
+    b.addStr("type", base.os.osType)
+    if base.os.name.len > 0:         b.addStr("name",          base.os.name)
+    if base.os.version.len > 0:      b.addStr("version",       base.os.version)
+    if base.os.versionMajor.len > 0: b.addStr("version_major", base.os.versionMajor)
+    if base.os.build.len > 0:        b.addStr("build",         base.os.build)
+    b.endObj()
   if base.service.len > 0:
     b.addStr("service", base.service)
   if base.version.len > 0:

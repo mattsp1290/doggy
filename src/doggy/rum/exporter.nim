@@ -39,11 +39,17 @@ proc buildRumUrl(state: ptr RumState): string {.inline.} =
     url &= "&ddtags=service:" & state[].config.service
   url
 
+proc rumExtraHeaders(state: ptr RumState): seq[(string, string)] =
+  if state[].config.userAgent.len > 0:
+    result = @[("User-Agent", state[].config.userAgent)]
+
 proc flushRum(state: ptr RumState; batch: seq[string]) {.inline.} =
   if batch.len == 0: return
   {.cast(gcsafe).}:
     try:
-      discard postJson(buildRumUrl(state), toNdjson(batch), "")
+      discard postJson(buildRumUrl(state), toNdjson(batch), "",
+                       rumExtraHeaders(state),
+                       contentType = "text/plain;charset=UTF-8")
     except CatchableError:
       discard
 
@@ -92,6 +98,9 @@ proc fillAndRotate(state: ptr RumState; base: var RumEventBase) =
   base.service       = state[].config.service
   base.version       = state[].config.version
   base.userAgent     = state[].config.userAgent
+  base.ddSource      = state[].config.ddSource
+  base.device        = state[].config.device
+  base.os            = state[].config.os
   base.timestamp     = epochMs()
   state[].session.touch()
 
@@ -157,7 +166,9 @@ proc forceFlush*(exp: var RumExporter) =
     item = exp.state[].queue.tryDequeue()
   if items.len > 0:
     try:
-      discard postJson(buildRumUrl(exp.state), toNdjson(items), "")
+      discard postJson(buildRumUrl(exp.state), toNdjson(items), "",
+                       rumExtraHeaders(exp.state),
+                       contentType = "text/plain;charset=UTF-8")
     except CatchableError:
       discard
 

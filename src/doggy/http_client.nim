@@ -16,11 +16,12 @@ proc retryAfterMs(resp: Response; fallback: int): int =
 # (1s → 2s → 4s, or Retry-After seconds), worst-case ~7s + request time.
 # Fine for background worker threads; avoid on latency-sensitive call paths.
 proc postJson*(url: string; body: string; apiKey: string;
-               extraHeaders: openArray[(string, string)] = []): Response =
+               extraHeaders: openArray[(string, string)] = [];
+               contentType = "application/json"): Response =
   let client = newHttpClient()
   defer: client.close()
 
-  var hdrs = @[("Content-Type", "application/json")]
+  var hdrs = @[("Content-Type", contentType)]
   if apiKey.len > 0:
     hdrs.add(("DD-API-KEY", apiKey))
   for pair in extraHeaders:

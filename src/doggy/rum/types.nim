@@ -12,17 +12,33 @@ type
     rrtAudio = "audio"
     rrtOther = "other"
 
+  RumDeviceInfo* = object
+    deviceType*:    string  ## "desktop", "mobile", "tablet", "tv", "other"
+    name*:          string  ## e.g. "MacBook Pro"
+    model*:         string  ## e.g. "Mac16,6"
+    brand*:         string  ## e.g. "Apple"
+    architecture*:  string  ## e.g. "arm64"
+
+  RumOsInfo* = object
+    osType*:        string  ## "macos", "ios", "android", "windows", "linux"
+    name*:          string  ## e.g. "macOS"
+    version*:       string  ## e.g. "26.5"
+    versionMajor*:  string  ## e.g. "26"
+    build*:         string  ## e.g. "25F71"
+
   # Common fields shared across all RUM event types.
-  # All events reference the same session + view ancestry.
   RumEventBase* = object
     sessionId*:     string
     viewId*:        string
     applicationId*: string
-    timestamp*:     int64   # ms since epoch
+    timestamp*:     int64
     ddtags*:        string
     service*:       string
     version*:       string
-    userAgent*:     string  # session.useragent; empty = omit
+    userAgent*:     string
+    ddSource*:      string      ## copied from config; emitted as _dd.source
+    device*:        RumDeviceInfo
+    os*:            RumOsInfo
 
   RumSessionEvent* = object
     base*: RumEventBase
@@ -63,8 +79,10 @@ type
     site*:           DdSite
     batchSize*:      int
     flushIntervalMs*: int
-    userAgent*:      string  # set in session.useragent; empty = omit
-    ddSource*:       string  # ddsource URL param; defaults to "browser"
+    userAgent*:      string      ## HTTP User-Agent header + session.useragent
+    ddSource*:       string      ## ddsource= URL param and _dd.source in payload
+    device*:         RumDeviceInfo
+    os*:             RumOsInfo
 
 proc defaultRumConfig*(clientToken, applicationId, service: string;
                        site = SiteUS1): RumConfig =
