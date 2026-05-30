@@ -4,6 +4,10 @@ import doggy/rum/types
 proc addBase(b: var JsonBuilder; base: RumEventBase; eventType: string) =
   b.startObj("_dd")
   b.addInt("format_version", 2'i64)
+  b.addInt("drift", 0'i64)
+  b.startObj("session")
+  b.addInt("plan", 1'i64)  # 1=LITE (no replay), 2=REPLAY
+  b.endObj()
   b.endObj()
   b.addStr("type", eventType)
   b.addInt("date", base.timestamp)
@@ -12,6 +16,7 @@ proc addBase(b: var JsonBuilder; base: RumEventBase; eventType: string) =
   b.endObj()
   b.startObj("session")
   b.addStr("id", base.sessionId)
+  b.addStr("type", "user")
   b.endObj()
   if base.service.len > 0:
     b.addStr("service", base.service)

@@ -30,13 +30,19 @@ type
 proc `=copy`*(dst: var RumExporter; src: RumExporter) {.error:
   "RumExporter owns a thread — pass by var".}
 
+proc buildRumUrl(state: ptr RumState): string {.inline.} =
+  var url = rumIntakeUrl(state[].config.site)
+  url &= "?ddsource=nim&sdkVersion=doggy-0.1.0"
+  url &= "&dd-api-key=" & state[].config.clientToken
+  if state[].config.service.len > 0:
+    url &= "&ddtags=service:" & state[].config.service
+  url
+
 proc flushRum(state: ptr RumState; batch: seq[string]) {.inline.} =
   if batch.len == 0: return
   {.cast(gcsafe).}:
     try:
-      let baseUrl = rumIntakeUrl(state[].config.site)
-      let url = baseUrl & "?dd-api-key=" & state[].config.clientToken
-      discard postJson(url, toNdjson(batch), "")
+      discard postJson(buildRumUrl(state), toNdjson(batch), "")
     except CatchableError:
       discard
 
@@ -149,9 +155,7 @@ proc forceFlush*(exp: var RumExporter) =
     item = exp.state[].queue.tryDequeue()
   if items.len > 0:
     try:
-      let baseUrl = rumIntakeUrl(exp.state[].config.site)
-      let url = baseUrl & "?dd-api-key=" & exp.state[].config.clientToken
-      discard postJson(url, toNdjson(items), "")
+      discard postJson(buildRumUrl(exp.state), toNdjson(items), "")
     except CatchableError:
       discard
 
